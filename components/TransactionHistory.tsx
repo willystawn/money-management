@@ -20,6 +20,7 @@ const Icons = {
 };
 
 const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, deleteTransaction, healthProfile, accounts, categories }) => {
+    const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
     const [filterCategoryId, setFilterCategoryId] = useState<'all' | string>('all');
     const [filterAccountId, setFilterAccountId] = useState<'all' | string>('all');
@@ -57,8 +58,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
             })
             .filter(t => filterType === 'all' || t.type === filterType)
             .filter(t => filterAccountId === 'all' || t.accountId === filterAccountId)
-            .filter(t => filterCategoryId === 'all' || t.type !== TransactionType.EXPENSE || t.categoryId === filterCategoryId);
-    }, [transactions, filterType, filterCategoryId, filterAccountId, filterYear, filterMonth]);
+            .filter(t => filterCategoryId === 'all' || t.type !== TransactionType.EXPENSE || t.categoryId === filterCategoryId)
+            .filter(t => searchQuery.trim() === '' || t.description.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+    }, [transactions, filterType, filterCategoryId, filterAccountId, filterYear, filterMonth, searchQuery]);
 
     const handleDeleteClick = (transaction: Transaction) => {
         setTransactionToDelete(transaction);
@@ -94,7 +96,18 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
         <div className="space-y-6">
             <div className="bg-gray-900/50 backdrop-blur-lg rounded-2xl shadow-lg ring-1 ring-white/10 p-4 sm:p-6">
                 <h2 className="text-xl font-bold text-gray-100 mb-4">Filter Riwayat Transaksi</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                     <div>
+                        <label htmlFor="search-description" className="block text-sm font-medium text-gray-400 mb-1.5">Cari Deskripsi</label>
+                        <input
+                            id="search-description"
+                            type="text"
+                            placeholder="cth: Makan siang"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-800/60 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500/70 placeholder:text-gray-500 transition-all"
+                        />
+                    </div>
                      <div>
                         <label htmlFor="filter-year" className="block text-sm font-medium text-gray-400 mb-1.5">Tahun</label>
                         <Select id="filter-year" value={filterYear} onChange={e => setFilterYear(e.target.value as any)}>

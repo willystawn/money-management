@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Account, Category } from '../types';
 
@@ -86,6 +85,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
     setAmount('');
   };
   
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    setAmount(rawValue);
+  };
+
+  const formatAmount = (value: string) => {
+    if (!value) return '';
+    return Number(value).toLocaleString('id-ID');
+  };
+  
   const TypeButton: React.FC<{
       label: string, 
       isActive: boolean, 
@@ -124,7 +133,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
         
         <div className="grid grid-cols-2 gap-4">
             <FormField label="Jumlah (IDR)" htmlFor="amount">
-              <Input type="number" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="50000" required min="0"/>
+              <Input type="text" inputMode="numeric" id="amount" value={formatAmount(amount)} onChange={handleAmountChange} placeholder="50.000" required />
             </FormField>
              <FormField label="Tanggal" htmlFor="date">
                 <Input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required/>

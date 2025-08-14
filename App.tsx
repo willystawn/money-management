@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { Transaction, View, Budget, HealthProfile, SpendingAnalysis, Account, Category, TransactionType } from './types';
+import { Transaction, View, Budget, HealthProfile, SpendingAnalysis, Account, Category, TransactionType, DietPreference } from './types';
 import { DEFAULT_CATEGORIES, DEFAULT_HEALTH_PROFILE } from './constants';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -12,6 +12,9 @@ import BudgetScreen from './components/BudgetScreen';
 import ProfileScreen from './components/ProfileScreen';
 import AccountsScreen from './components/AccountsScreen';
 import CategoryScreen from './components/CategoryScreen';
+import { Database } from './database.types';
+
+type CategoryRow = Database['public']['Tables']['categories']['Row'];
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -46,36 +49,33 @@ const App: React.FC = () => {
   const fetchData = useCallback(async (userId: string) => {
     setLoading(true);
     try {
-        // Fetch categories first, or seed them if they don't exist
-        let { data: fetchedCategories, error: categoriesError } = await supabase.from('categories').select('*').eq('user_id', userId).order('name', { ascending: true });
+        let currentCategories: CategoryRow[] = [];
+
+        const { data: fetchedCategories, error: categoriesError } = await supabase.from('categories').select('*').eq('user_id', userId).order('name', { ascending: true });
         if (categoriesError) throw categoriesError;
 
         if (!fetchedCategories || fetchedCategories.length === 0) {
             const categoriesToInsert = DEFAULT_CATEGORIES.map(cat => ({...cat, user_id: userId}));
             const { data: seededCategories, error: seedError } = await supabase.from('categories').insert(categoriesToInsert).select();
             if(seedError) throw seedError;
-            fetchedCategories = seededCategories;
+            currentCategories = seededCategories || [];
+        } else {
+            currentCategories = fetchedCategories;
         }
-        const currentCategories = fetchedCategories || [];
         setCategories(currentCategories);
         
-        const [accountsRes, transactionsRes, budgetRes, profileRes] = await Promise.all([
-            supabase.from('accounts').select('*').eq('user_id', userId),
-            supabase.from('transactions').select('*, category:categories(id, name, color)').eq('user_id', userId).order('date', { ascending: false }).order('created_at', { ascending: false }),
-            supabase.from('budgets').select('budget_data').eq('user_id', userId).single(),
-            supabase.from('health_profiles').select('diet_preference').eq('user_id', userId).single()
-        ]);
+        const { data: accountsData, error: accountsError } = await supabase.from('accounts').select('*').eq('user_id', userId);
+        if (accountsError) throw accountsError;
+        setAccounts(accountsData || []);
 
-        if (accountsRes.error) throw accountsRes.error;
-        setAccounts(accountsRes.data || []);
-
-        if (transactionsRes.error) throw transactionsRes.error;
-        const formattedTransactions: Transaction[] = transactionsRes.data?.map(t => ({
+        const { data: transactionsData, error: transactionsError } = await supabase.from('transactions').select('*, category:categories(id, name, color)').eq('user_id', userId).order('date', { ascending: false }).order('created_at', { ascending: false });
+        if (transactionsError) throw transactionsError;
+        const formattedTransactions: Transaction[] = transactionsData?.map(t => ({
           id: t.id,
           description: t.description,
           amount: t.amount,
-          type: t.type,
-          category: t.category,
+          type: t.type as TransactionType,
+          category: t.category as { id: string; name: string; color: string } | null,
           date: t.date,
           accountId: t.account_id,
           categoryId: t.category_id,
@@ -83,26 +83,27 @@ const App: React.FC = () => {
         })) || [];
         setTransactions(formattedTransactions);
 
-        if (budgetRes.data?.budget_data) {
-            setBudgets(budgetRes.data.budget_data as Budget);
+        const { data: budgetData, error: budgetError } = await supabase.from('budgets').select('budget_data').eq('user_id', userId).single();
+        if (budgetError && budgetError.code !== 'PGRST116') throw budgetError;
+        if (budgetData?.budget_data) {
+            setBudgets(budgetData.budget_data as Budget);
         } else if (currentCategories.length > 0) {
-            // Set up default budget for 'Makanan' after seeding categories
             const foodCategory = currentCategories.find(c => c.name === 'Makanan');
             const initialBudget = foodCategory ? { [foodCategory.id]: 1500000 } : {};
             await supabase.from('budgets').upsert({ user_id: userId, budget_data: initialBudget });
             setBudgets(initialBudget);
         }
 
-        if (profileRes.data?.diet_preference) {
-            setHealthProfile({ dietPreference: profileRes.data.diet_preference });
+        const { data: profileData, error: profileError } = await supabase.from('health_profiles').select('diet_preference').eq('user_id', userId).single();
+        if (profileError && profileError.code !== 'PGRST116') throw profileError;
+        if (profileData?.diet_preference) {
+            setHealthProfile({ dietPreference: profileData.diet_preference as DietPreference });
         } else {
             await supabase.from('health_profiles').upsert({ user_id: userId, diet_preference: DEFAULT_HEALTH_PROFILE.dietPreference });
             setHealthProfile(DEFAULT_HEALTH_PROFILE);
         }
     } catch (error: any) {
-        if (error.code !== 'PGRST116') { // Ignore error for no rows found on .single()
-            console.error('Error fetching data:', error.message);
-        }
+        console.error('Error fetching data:', error.message);
     } finally {
         setLoading(false);
     }
@@ -131,7 +132,8 @@ const App: React.FC = () => {
     
     const spendingAnalysis = await analyzeSpending(transactionData);
     const { accountId, categoryId, ...rest } = transactionData;
-    const dbTransaction = {
+    
+    const dbTransaction: Database['public']['Tables']['transactions']['Insert'] = {
       ...rest,
       user_id: session.user.id,
       account_id: accountId,
@@ -139,7 +141,7 @@ const App: React.FC = () => {
       spending_analysis: spendingAnalysis,
     };
 
-    const { data, error } = await supabase.from('transactions').insert([dbTransaction]).select('*, category:categories(id, name, color)').single();
+    const { data, error } = await supabase.from('transactions').insert(dbTransaction).select('*, category:categories(id, name, color)').single();
 
     if (error) {
         console.error('Error adding transaction:', error);
@@ -149,11 +151,11 @@ const App: React.FC = () => {
             id: data.id,
             description: data.description,
             amount: data.amount,
-            type: data.type,
+            type: data.type as TransactionType,
             date: data.date,
             accountId: data.account_id,
             categoryId: data.category_id,
-            category: data.category,
+            category: data.category as { id: string; name: string; color: string } | null,
             spendingAnalysis: data.spending_analysis as SpendingAnalysis | undefined,
         };
         setTransactions(prev => [formattedTransaction, ...prev]);
@@ -205,6 +207,31 @@ const App: React.FC = () => {
       }
   }, []);
 
+  const adjustAccountBalance = useCallback(async (accountId: string, newBalance: number) => {
+    if (!session?.user) return;
+
+    const currentBalance = transactions
+        .filter(t => t.accountId === accountId)
+        .reduce((acc, t) => t.type === TransactionType.INCOME ? acc + t.amount : acc - t.amount, 0);
+
+    const adjustmentAmount = newBalance - currentBalance;
+
+    if (Math.abs(adjustmentAmount) < 0.01) {
+        return;
+    }
+
+    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'> = {
+      description: 'Penyesuaian Saldo',
+      amount: Math.abs(adjustmentAmount),
+      type: adjustmentAmount > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
+      date: new Date().toISOString().split('T')[0],
+      accountId: accountId,
+      categoryId: null,
+    };
+    
+    await addTransaction(transactionData);
+  }, [session, transactions, addTransaction]);
+
   const addCategory = useCallback(async (name: string, color: string) => {
     if (!session?.user) return;
     const { data, error } = await supabase.from('categories').insert({ name, color, user_id: session.user.id }).select().single();
@@ -242,20 +269,16 @@ const App: React.FC = () => {
   }, [session]);
 
   const deleteCategory = useCallback(async (id: string) => {
-    // The database schema now uses 'ON DELETE SET NULL'. This automatically un-categorizes 
-    // transactions when a category is deleted, so the manual check is removed for a better UX.
     const { error } = await supabase.from('categories').delete().eq('id', id);
     if (error) {
         alert(`Gagal menghapus kategori: ${error.message}`);
     } else {
         setCategories(prev => prev.filter(c => c.id !== id));
         
-        // Also remove the category from the budget state and persist the change.
         const newBudgets = { ...budgets };
         delete newBudgets[id];
         updateBudgets(newBudgets);
 
-        // Update local transactions state to reflect the removed category without a full refetch.
         setTransactions(prev => 
             prev.map(t => {
                 if (t.categoryId === id) {
@@ -290,7 +313,7 @@ const App: React.FC = () => {
       case View.HISTORY:
         return <TransactionHistory transactions={transactions} deleteTransaction={deleteTransaction} healthProfile={healthProfile} accounts={accounts} categories={categories} />;
       case View.ACCOUNTS:
-        return <AccountsScreen accounts={accounts} addAccount={addAccount} deleteAccount={deleteAccount} />;
+        return <AccountsScreen accounts={accounts} transactions={transactions} addAccount={addAccount} deleteAccount={deleteAccount} adjustAccountBalance={adjustAccountBalance} />;
        case View.CATEGORIES:
         return <CategoryScreen categories={categories} addCategory={addCategory} updateCategory={updateCategory} deleteCategory={deleteCategory} />;
       case View.BUDGET:
@@ -300,7 +323,7 @@ const App: React.FC = () => {
       default:
         return <Dashboard transactions={transactions} addTransaction={addTransaction} budgets={budgets} healthProfile={healthProfile} accounts={accounts} categories={categories}/>;
     }
-  }, [currentView, transactions, accounts, budgets, healthProfile, categories, addTransaction, deleteTransaction, addAccount, deleteAccount, updateBudgets, updateProfile, session, deleteCategory, updateCategory, addCategory]);
+  }, [currentView, transactions, accounts, budgets, healthProfile, categories, addTransaction, deleteTransaction, addAccount, deleteAccount, updateBudgets, updateProfile, session, deleteCategory, updateCategory, addCategory, adjustAccountBalance]);
 
   if (loading) {
     return (

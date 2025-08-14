@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Budget, Category } from '../types';
 
@@ -28,7 +27,7 @@ const BudgetScreen: React.FC<BudgetScreenProps> = ({ budgets, updateBudgets, cat
     }, [localBudgets, budgets, updateBudgets]);
     
     const handleBudgetChange = (categoryId: string, value: string) => {
-        const newAmount = parseInt(value, 10);
+        const newAmount = parseInt(value.replace(/\D/g, ''), 10);
         setLocalBudgets(prev => ({
             ...prev,
             [categoryId]: isNaN(newAmount) ? 0 : newAmount,
@@ -52,9 +51,10 @@ const BudgetScreen: React.FC<BudgetScreenProps> = ({ budgets, updateBudgets, cat
                         <div className="flex items-center">
                             <span className="text-gray-400 mr-2">Rp</span>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
                                 id={`budget-${category.id}`}
-                                value={localBudgets[category.id] || ''}
+                                value={localBudgets[category.id] ? localBudgets[category.id].toLocaleString('id-ID') : ''}
                                 onChange={(e) => handleBudgetChange(category.id, e.target.value)}
                                 placeholder="0"
                                 className="w-40 px-3 py-2 text-right bg-gray-700/80 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500/70 focus:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all"

@@ -344,54 +344,56 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, bud
                 <TransactionForm addTransaction={addTransaction} accounts={accounts} categories={categories} />
             </div>
             <div className="lg:col-span-2">
-              <Card className="p-6 h-full">
-                <h3 className="text-lg font-semibold text-gray-100 mb-4">Porsi Pengeluaran (Bulan Ini)</h3>
+              <Card className="p-6 h-full flex flex-col">
+                <h3 className="text-lg font-semibold text-gray-100 mb-4 flex-shrink-0">Porsi Pengeluaran (Bulan Ini)</h3>
                 {pieChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={pieChartData}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                outerRadius={110}
-                                innerRadius={60}
-                                fill="#8884d8"
-                                dataKey="value"
-                                nameKey="name"
-                                paddingAngle={2}
-                                label={({ name, percent, ...rest }: { name?: string, percent?: number, [key: string]: any }) => (
-                                    <text
-                                        {...rest}
-                                        fill="#e5e7eb"
-                                        fontSize="0.8rem"
-                                        dominantBaseline="central"
-                                    >
-                                        {percent ? `${(percent * 100).toFixed(0)}%` : null}
-                                    </text>
-                                )}
-                            >
-                                {pieChartData.map((entry) => (
-                                    <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={'none'} />
-                                ))}
-                            </Pie>
-                            <Tooltip 
-                                formatter={(value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value)}
-                                contentStyle={{ 
-                                    backgroundColor: 'rgba(3, 7, 18, 0.95)', 
-                                    backdropFilter: 'blur(10px)', 
-                                    border: '1px solid rgba(255, 255, 255, 0.1)', 
-                                    borderRadius: '0.75rem',
-                                    boxShadow: '0 0 20px rgba(0,0,0,0.5)'
-                                }}
-                                labelStyle={{ color: '#f9fafb', fontWeight: 'bold' }}
-                                itemStyle={{ color: '#f9fafb' }}
-                             />
-                            <Legend iconType="circle" wrapperStyle={{ color: '#e5e7eb', paddingTop: '20px' }}/>
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="flex-grow flex items-center justify-center min-h-0">
+                        <ResponsiveContainer width="100%" height={350}>
+                            <PieChart>
+                                <Pie
+                                    data={pieChartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={110}
+                                    innerRadius={60}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                    nameKey="name"
+                                    paddingAngle={2}
+                                    label={({ name, percent, ...rest }: { name?: string, percent?: number, [key: string]: any }) => (
+                                        <text
+                                            {...rest}
+                                            fill="#e5e7eb"
+                                            fontSize="0.8rem"
+                                            dominantBaseline="central"
+                                        >
+                                            {percent ? `${(percent * 100).toFixed(0)}%` : null}
+                                        </text>
+                                    )}
+                                >
+                                    {pieChartData.map((entry) => (
+                                        <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={'none'} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    formatter={(value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value)}
+                                    contentStyle={{ 
+                                        backgroundColor: 'rgba(3, 7, 18, 0.95)', 
+                                        backdropFilter: 'blur(10px)', 
+                                        border: '1px solid rgba(255, 255, 255, 0.1)', 
+                                        borderRadius: '0.75rem',
+                                        boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+                                    }}
+                                    labelStyle={{ color: '#f9fafb', fontWeight: 'bold' }}
+                                    itemStyle={{ color: '#f9fafb' }}
+                                 />
+                                <Legend iconType="circle" wrapperStyle={{ color: '#e5e7eb', paddingTop: '20px' }}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
+                    <div className="flex-grow flex items-center justify-center text-gray-500">
                         <p>Belum ada data pengeluaran bulan ini.</p>
                     </div>
                 )}
