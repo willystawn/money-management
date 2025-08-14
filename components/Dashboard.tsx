@@ -2,16 +2,16 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Transaction, TransactionType, ExpenseCategory, Budget, HealthProfile, AIAnalysis, Account } from '../types';
-import { categoryColors } from '../constants';
+import { Transaction, TransactionType, Budget, HealthProfile, AIAnalysis, Account, Category, DietPreference } from '../types';
 import TransactionForm from './TransactionForm';
 
 interface DashboardProps {
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>) => void;
   budgets: Budget;
   healthProfile: HealthProfile;
   accounts: Account[];
+  categories: Category[];
 }
 
 // Glassmorphism Card Wrapper
@@ -51,7 +51,10 @@ const AccountBalancesCard: React.FC<{ accounts: Account[], transactions: Transac
                 <div className="p-3 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 shadow-lg shadow-black/20">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-100">Saldo per Akun</h3>
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-100">Saldo per Akun</h3>
+                    <p className="text-xs text-gray-500 -mt-1">Total saldo sepanjang waktu</p>
+                </div>
             </div>
             <div className="space-y-2 max-h-28 overflow-y-auto pr-2">
                 {balances.length > 0 ? balances.map(acc => (
@@ -96,16 +99,43 @@ const FoodBudgetCard: React.FC<{spent: number, budget: number}> = ({ spent, budg
 const AIAssistantCard: React.FC<{
     transactions: Transaction[], 
     budgets: Budget, 
-    healthProfile: HealthProfile
-}> = ({ transactions, budgets, healthProfile }) => {
+    healthProfile: HealthProfile,
+    categories: Category[]
+}> = ({ transactions, budgets, healthProfile, categories }) => {
     const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const foodCategory = useMemo(() => categories.find(c => c.name === 'Makanan'), [categories]);
+    
+    const getDietProfileDescription = (preference: DietPreference) => {
+        switch (preference) {
+            case 'Ibu Hamil':
+                return "Pengguna adalah ibu hamil yang membutuhkan nutrisi penting untuk kesehatan ibu dan perkembangan janin, seperti asam folat, zat besi, dan kalsium.";
+            case 'Badan Berisi':
+                return "Pengguna ingin menaikkan berat badan secara sehat (menambah massa otot, bukan hanya lemak) dengan diet surplus kalori yang bergizi.";
+            case 'Pertumbuhan Anak':
+                return "Pengguna fokus menyediakan makanan bergizi untuk mendukung pertumbuhan dan perkembangan optimal anak-anak.";
+            case 'Vegetarian':
+                 return "Pengguna adalah seorang vegetarian yang ingin memastikan asupan gizi seimbang dari sumber nabati.";
+            case 'RendahGula':
+                 return "Pengguna fokus pada diet rendah gula untuk menjaga kadar gula darah dan kesehatan secara umum.";
+            case 'Normal':
+            default:
+                return "Pengguna ingin makan lebih sehat untuk jangka panjang, menghindari makanan tidak sehat (gorengan, terlalu manis, olahan), dan menjaga berat badan ideal.";
+        }
+    }
 
     const handleAnalysis = useCallback(async () => {
         setIsAnalyzing(true);
         setError(null);
         setAnalysis(null);
+
+        if (!foodCategory) {
+            setError("Kategori 'Makanan' tidak ditemukan. Analisis tidak dapat dilanjutkan.");
+            setIsAnalyzing(false);
+            return;
+        }
 
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -114,7 +144,7 @@ const AIAssistantCard: React.FC<{
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
             const recentFoodTransactions = transactions
-                .filter(t => t.category === ExpenseCategory.FOOD && new Date(t.date) > thirtyDaysAgo)
+                .filter(t => t.categoryId === foodCategory.id && new Date(t.date) > thirtyDaysAgo)
                 .map(t => `- ${t.date}: ${t.description} (Rp ${t.amount.toLocaleString('id-ID')})`)
                 .join('\n');
 
@@ -123,13 +153,16 @@ const AIAssistantCard: React.FC<{
                 setIsAnalyzing(false);
                 return;
             }
+            
+            const foodBudget = budgets[foodCategory.id] || 0;
+            const dietProfileDescription = getDietProfileDescription(healthProfile.dietPreference);
 
             const prompt = `
 Anda adalah asisten keuangan dan gizi pribadi yang cerdas, ramah, dan praktis untuk aplikasi 'Manajer Keuangan Cerdas'. Tugas Anda adalah menganalisis data pengguna dan memberikan wawasan yang bermanfaat dalam Bahasa Indonesia.
 
 Berikut adalah data pengguna:
-- Profil Kesehatan: Pengguna ingin makan lebih sehat untuk jangka panjang, menghindari makanan yang tidak sehat (gorengan, terlalu manis, olahan), dan menjaga berat badan ideal (menghindari "buncit"). Preferensi Diet saat ini adalah '${healthProfile.dietPreference}'.
-- Budget Makanan Bulanan: Rp ${(budgets[ExpenseCategory.FOOD] || 0).toLocaleString('id-ID')}.
+- Profil Kesehatan: ${dietProfileDescription}
+- Budget Makanan Bulanan: Rp ${foodBudget.toLocaleString('id-ID')}.
 - Transaksi Makanan 30 Hari Terakhir:
 ${recentFoodTransactions}
 
@@ -175,7 +208,7 @@ Tugas Anda, berdasarkan data di atas, berikan analisis dalam format JSON.
         } finally {
             setIsAnalyzing(false);
         }
-    }, [transactions, budgets, healthProfile]);
+    }, [transactions, budgets, healthProfile, foodCategory]);
     
     const AnalysisResultItem = ({icon, title, children}: {icon: React.ReactNode, title: string, children: React.ReactNode}) => (
         <div className="bg-gray-800/60 p-4 rounded-lg ring-1 ring-white/10">
@@ -212,7 +245,8 @@ Tugas Anda, berdasarkan data di atas, berikan analisis dalam format JSON.
                 <div className="text-center mt-6">
                     <button
                         onClick={handleAnalysis}
-                        disabled={isAnalyzing}
+                        disabled={isAnalyzing || !foodCategory}
+                        title={!foodCategory ? "Kategori 'Makanan' dibutuhkan untuk analisis" : "Dapatkan Analisis"}
                         className="py-3 px-8 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-blue-600/30 hover:from-blue-500 hover:to-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-950 focus:ring-blue-500 transition-all transform hover:scale-105 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                         Dapatkan Analisis
@@ -227,7 +261,7 @@ Tugas Anda, berdasarkan data di atas, berikan analisis dalam format JSON.
                     </AnalysisResultItem>
                     <AnalysisResultItem icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>} title="Analisis Gizi">
                        <p>{analysis.nutritionalAdvice}</p>
-                    </AnalysisResultItem>
+                    </AIAssistantCard>
                     <AnalysisResultItem icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>} title="Tips Cerdas">
                          <ul className="list-disc list-inside space-y-1">
                            {analysis.actionableTips.map((tip, index) => <li key={index}>{tip}</li>)}
@@ -243,7 +277,8 @@ Tugas Anda, berdasarkan data di atas, berikan analisis dalam format JSON.
     )
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, budgets, healthProfile, accounts }) => {
+const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, budgets, healthProfile, accounts, categories }) => {
+  const foodCategory = useMemo(() => categories.find(c => c.name === 'Makanan'), [categories]);
 
   const { totalIncome, totalExpense, foodExpenseThisMonth } = useMemo(() => {
     const now = new Date();
@@ -264,13 +299,13 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, bud
       .reduce((sum, t) => sum + t.amount, 0);
       
     const foodExpense = monthlyTransactions
-      .filter(t => t.type === TransactionType.EXPENSE && t.category === ExpenseCategory.FOOD)
+      .filter(t => foodCategory && t.categoryId === foodCategory.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
     return { totalIncome: income, totalExpense: expense, foodExpenseThisMonth: foodExpense };
-  }, [transactions]);
+  }, [transactions, foodCategory]);
 
-  const foodBudget = useMemo(() => budgets[ExpenseCategory.FOOD] || 0, [budgets]);
+  const foodBudget = useMemo(() => (foodCategory ? budgets[foodCategory.id] : 0) || 0, [budgets, foodCategory]);
 
   const pieChartData = useMemo(() => {
     const now = new Date();
@@ -280,15 +315,17 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, bud
     const expenseByCategory = transactions
         .filter(t => t.type === TransactionType.EXPENSE && new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear)
         .reduce((acc, t) => {
-            const category = t.category || ExpenseCategory.OTHER;
-            acc[category] = (acc[category] || 0) + t.amount;
+            if (t.category) {
+                 acc[t.category.id] = {
+                    name: t.category.name,
+                    color: t.category.color,
+                    value: (acc[t.category.id]?.value || 0) + t.amount,
+                };
+            }
             return acc;
-        }, {} as { [key in ExpenseCategory]?: number });
+        }, {} as { [key: string]: { name: string, color: string, value: number } });
 
-    return Object.entries(expenseByCategory)
-      .map(([name, value]) => ({ name: name as ExpenseCategory, value }))
-      .sort((a, b) => b.value - a.value);
-
+    return Object.values(expenseByCategory).sort((a, b) => b.value - a.value);
   }, [transactions]);
   
   return (
@@ -300,11 +337,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, bud
             <AccountBalancesCard accounts={accounts} transactions={transactions} />
         </div>
         
-        <AIAssistantCard transactions={transactions} budgets={budgets} healthProfile={healthProfile} />
+        <AIAssistantCard transactions={transactions} budgets={budgets} healthProfile={healthProfile} categories={categories} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1">
-                <TransactionForm addTransaction={addTransaction} accounts={accounts} />
+                <TransactionForm addTransaction={addTransaction} accounts={accounts} categories={categories} />
             </div>
             <div className="lg:col-span-2">
               <Card className="p-6 h-full">
@@ -335,7 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, addTransaction, bud
                                 )}
                             >
                                 {pieChartData.map((entry) => (
-                                    <Cell key={`cell-${entry.name}`} fill={categoryColors[entry.name]} stroke={'none'} />
+                                    <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={'none'} />
                                 ))}
                             </Pie>
                             <Tooltip 

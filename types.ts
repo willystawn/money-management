@@ -9,14 +9,11 @@ export enum TransactionType {
   EXPENSE = 'EXPENSE',
 }
 
-export enum ExpenseCategory {
-  FOOD = 'Makanan',
-  TRANSPORTATION = 'Transportasi',
-  BILLS = 'Tagihan',
-  ENTERTAINMENT = 'Hiburan',
-  SHOPPING = 'Belanja',
-  HEALTH = 'Kesehatan',
-  OTHER = 'Lainnya',
+export interface Category {
+    id: string;
+    name: string;
+    color: string;
+    user_id: string;
 }
 
 export enum SpendingAnalysis {
@@ -31,7 +28,8 @@ export interface Transaction {
   description: string;
   amount: number;
   type: TransactionType;
-  category?: ExpenseCategory;
+  category: { id: string; name: string; color: string } | null;
+  categoryId: string | null;
   date: string;
   spendingAnalysis?: SpendingAnalysis;
 }
@@ -42,13 +40,14 @@ export enum View {
   BUDGET = 'BUDGET',
   PROFILE = 'PROFILE',
   ACCOUNTS = 'ACCOUNTS',
+  CATEGORIES = 'CATEGORIES',
 }
 
 export type Budget = {
-    [key in ExpenseCategory]?: number;
+    [categoryId: string]: number;
 };
 
-export type DietPreference = 'Normal' | 'Vegetarian' | 'RendahGula';
+export type DietPreference = 'Normal' | 'Vegetarian' | 'RendahGula' | 'Ibu Hamil' | 'Badan Berisi' | 'Pertumbuhan Anak';
 
 export interface HealthProfile {
     dietPreference: DietPreference;
@@ -62,6 +61,11 @@ export interface FoodItem {
 
     isVegetarian: boolean;
     isLowSugar: boolean;
+
+    // New properties for targeted suggestions
+    isPregnancyFriendly?: boolean;
+    isKidFriendly?: boolean;
+    isBulkingFriendly?: boolean;
 }
 
 export interface AIAnalysis {

@@ -1,30 +1,14 @@
-import { ExpenseCategory, Budget, HealthProfile, Account } from './types';
+import { HealthProfile } from './types';
 
-export const expenseCategories: ExpenseCategory[] = [
-  ExpenseCategory.FOOD,
-  ExpenseCategory.TRANSPORTATION,
-  ExpenseCategory.BILLS,
-  ExpenseCategory.ENTERTAINMENT,
-  ExpenseCategory.SHOPPING,
-  ExpenseCategory.HEALTH,
-  ExpenseCategory.OTHER,
+export const DEFAULT_CATEGORIES = [
+  { name: 'Makanan', color: '#ef4444' },
+  { name: 'Transportasi', color: '#f97316' },
+  { name: 'Tagihan', color: '#eab308' },
+  { name: 'Hiburan', color: '#84cc16' },
+  { name: 'Belanja', color: '#22c55e' },
+  { name: 'Kesehatan', color: '#14b8a6' },
+  { name: 'Lainnya', color: '#64748b' },
 ];
-
-export const categoryColors: { [key in ExpenseCategory]: string } = {
-  [ExpenseCategory.FOOD]: '#ef4444', // red-500
-  [ExpenseCategory.TRANSPORTATION]: '#f97316', // orange-500
-  [ExpenseCategory.BILLS]: '#eab308', // yellow-500
-  [ExpenseCategory.ENTERTAINMENT]: '#84cc16', // lime-500
-  [ExpenseCategory.SHOPPING]: '#22c55e', // green-500
-  [ExpenseCategory.HEALTH]: '#14b8a6', // teal-500
-  [ExpenseCategory.OTHER]: '#64748b', // slate-500
-};
-
-export const DEFAULT_BUDGET: Budget = {
-    [ExpenseCategory.FOOD]: 1500000,
-    [ExpenseCategory.TRANSPORTATION]: 500000,
-    [ExpenseCategory.ENTERTAINMENT]: 400000,
-};
 
 export const DEFAULT_HEALTH_PROFILE: HealthProfile = {
     dietPreference: 'Normal',

@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Transaction, TransactionType, ExpenseCategory, SpendingAnalysis, HealthProfile, Account } from '../types';
-import { expenseCategories } from '../constants';
+import { Transaction, TransactionType, SpendingAnalysis, HealthProfile, Account, Category } from '../types';
 import AISuggestion from './AISuggestion';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -9,6 +9,7 @@ interface TransactionHistoryProps {
   deleteTransaction: (id: string) => Promise<void>;
   healthProfile: HealthProfile;
   accounts: Account[];
+  categories: Category[];
 }
 
 const Icons = {
@@ -18,23 +19,46 @@ const Icons = {
   Expense: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" /></svg>,
 };
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, deleteTransaction, healthProfile, accounts }) => {
+const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, deleteTransaction, healthProfile, accounts, categories }) => {
     const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
-    const [filterCategory, setFilterCategory] = useState<'all' | ExpenseCategory>('all');
+    const [filterCategoryId, setFilterCategoryId] = useState<'all' | string>('all');
     const [filterAccountId, setFilterAccountId] = useState<'all' | string>('all');
+    const [filterYear, setFilterYear] = useState<'all' | number>('all');
+    const [filterMonth, setFilterMonth] = useState<'all' | number>('all');
     const [showSuggestionFor, setShowSuggestionFor] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    const foodCategoryName = 'Makanan';
 
     const getAccountName = (accountId: string) => accounts.find(a => a.id === accountId)?.name || 'Akun Dihapus';
+
+    const availableYears = useMemo(() => {
+        if (!transactions || transactions.length === 0) return [];
+        const years = new Set(transactions.map(t => new Date(t.date).getFullYear()));
+        return Array.from(years).sort((a, b) => b - a);
+    }, [transactions]);
+
+    const monthOptions = [
+        { value: 0, label: 'Januari' }, { value: 1, label: 'Februari' }, { value: 2, label: 'Maret' },
+        { value: 3, label: 'April' }, { value: 4, label: 'Mei' }, { value: 5, label: 'Juni' },
+        { value: 6, label: 'Juli' }, { value: 7, label: 'Agustus' }, { value: 8, label: 'September' },
+        { value: 9, label: 'Oktober' }, { value: 10, label: 'November' }, { value: 11, label: 'Desember' },
+    ];
     
     const filteredTransactions = useMemo(() => {
         return transactions
+            .filter(t => {
+                const tDate = new Date(t.date);
+                const yearMatch = filterYear === 'all' || tDate.getFullYear() === Number(filterYear);
+                const monthMatch = filterMonth === 'all' || tDate.getMonth() === Number(filterMonth);
+                return yearMatch && monthMatch;
+            })
             .filter(t => filterType === 'all' || t.type === filterType)
             .filter(t => filterAccountId === 'all' || t.accountId === filterAccountId)
-            .filter(t => filterCategory === 'all' || t.type !== TransactionType.EXPENSE || t.category === filterCategory);
-    }, [transactions, filterType, filterCategory, filterAccountId]);
+            .filter(t => filterCategoryId === 'all' || t.type !== TransactionType.EXPENSE || t.categoryId === filterCategoryId);
+    }, [transactions, filterType, filterCategoryId, filterAccountId, filterYear, filterMonth]);
 
     const handleDeleteClick = (transaction: Transaction) => {
         setTransactionToDelete(transaction);
@@ -70,7 +94,21 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
         <div className="space-y-6">
             <div className="bg-gray-900/50 backdrop-blur-lg rounded-2xl shadow-lg ring-1 ring-white/10 p-4 sm:p-6">
                 <h2 className="text-xl font-bold text-gray-100 mb-4">Filter Riwayat Transaksi</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                     <div>
+                        <label htmlFor="filter-year" className="block text-sm font-medium text-gray-400 mb-1.5">Tahun</label>
+                        <Select id="filter-year" value={filterYear} onChange={e => setFilterYear(e.target.value as any)}>
+                            <option value="all">Semua Tahun</option>
+                            {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+                        </Select>
+                    </div>
+                    <div>
+                        <label htmlFor="filter-month" className="block text-sm font-medium text-gray-400 mb-1.5">Bulan</label>
+                        <Select id="filter-month" value={filterMonth} onChange={e => setFilterMonth(e.target.value as any)}>
+                            <option value="all">Semua Bulan</option>
+                            {monthOptions.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
+                        </Select>
+                    </div>
                     <div>
                         <label htmlFor="filter-type" className="block text-sm font-medium text-gray-400 mb-1.5">Tipe</label>
                         <Select id="filter-type" value={filterType} onChange={e => setFilterType(e.target.value as any)}>
@@ -88,9 +126,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
                     </div>
                      <div>
                         <label htmlFor="filter-category" className="block text-sm font-medium text-gray-400 mb-1.5">Kategori</label>
-                         <Select id="filter-category" value={filterCategory} onChange={e => setFilterCategory(e.target.value as any)} disabled={filterType === TransactionType.INCOME}>
+                         <Select id="filter-category" value={filterCategoryId} onChange={e => setFilterCategoryId(e.target.value as any)} disabled={filterType === TransactionType.INCOME}>
                             <option value="all">Semua Kategori</option>
-                            {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                         </Select>
                     </div>
                 </div>
@@ -106,13 +144,21 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="font-semibold text-gray-200 truncate">{t.description}</p>
-                                    <div className="text-sm text-gray-400 flex items-center flex-wrap gap-x-2">
+                                    <div className="text-sm text-gray-400 flex items-center flex-wrap gap-x-2 gap-y-1 mt-1">
                                         <span>{new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                        <span className="text-gray-600">|</span>
+                                        <span className="text-gray-600 hidden sm:inline">|</span>
                                         <span>{getAccountName(t.accountId)}</span>
                                         {t.category && <>
-                                            <span className="text-gray-600">|</span>
-                                            <span className="text-xs bg-gray-700 px-1.5 py-0.5 rounded">{t.category}</span>
+                                            <span className="text-gray-600 hidden sm:inline">|</span>
+                                            <span 
+                                                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                                style={{ 
+                                                    backgroundColor: `${t.category.color}26`, // ~15% opacity
+                                                    color: t.category.color,
+                                                }}
+                                            >
+                                                {t.category.name}
+                                            </span>
                                         </>}
                                     </div>
                                 </div>
@@ -123,7 +169,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
                                         {t.type === TransactionType.INCOME ? '+' : '-'} {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(t.amount)}
                                     </p>
                                 </div>
-                                {t.category === ExpenseCategory.FOOD && t.spendingAnalysis === SpendingAnalysis.EXTRAVAGANT && (
+                                {t.category?.name === foodCategoryName && t.spendingAnalysis === SpendingAnalysis.EXTRAVAGANT && (
                                     <button onClick={() => setShowSuggestionFor(showSuggestionFor === t.id ? null : t.id)} aria-label="Lihat Saran" className="p-2 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-full transition-colors">
                                         <Icons.Lightbulb className="w-5 h-5" />
                                     </button>

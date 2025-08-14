@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Transaction, HealthProfile, FoodItem } from '../types';
 import { foodDB } from '../data/foodDB';
@@ -12,11 +13,23 @@ const getFoodSuggestion = (transaction: Transaction, healthProfile: HealthProfil
     let candidates = foodDB.filter(item => item.estimatedPrice < transaction.amount);
 
     // Filter based on diet preference
-    if (healthProfile.dietPreference === 'Vegetarian') {
-        candidates = candidates.filter(item => item.isVegetarian);
-    }
-    if (healthProfile.dietPreference === 'RendahGula') {
-        candidates = candidates.filter(item => item.isLowSugar);
+    switch (healthProfile.dietPreference) {
+        case 'Vegetarian':
+            candidates = candidates.filter(item => item.isVegetarian);
+            break;
+        case 'RendahGula':
+            candidates = candidates.filter(item => item.isLowSugar);
+            break;
+        case 'Ibu Hamil':
+            candidates = candidates.filter(item => item.isPregnancyFriendly);
+            break;
+        case 'Badan Berisi':
+            candidates = candidates.filter(item => item.isBulkingFriendly);
+            break;
+        case 'Pertumbuhan Anak':
+            candidates = candidates.filter(item => item.isKidFriendly);
+            break;
+        // 'Normal' does not add extra filters, so it has more variety.
     }
     
     // If no candidates, return null
@@ -30,7 +43,10 @@ const getFoodSuggestion = (transaction: Transaction, healthProfile: HealthProfil
 
 
 const AISuggestion: React.FC<AISuggestionProps> = ({ transaction, healthProfile }) => {
-    const suggestion = useMemo(() => getFoodSuggestion(transaction, healthProfile), [transaction, healthProfile]);
+    const suggestion = useMemo(() => {
+        if (transaction.category?.name !== 'Makanan') return null;
+        return getFoodSuggestion(transaction, healthProfile);
+    }, [transaction, healthProfile]);
 
     return (
         <div className="p-4 bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">

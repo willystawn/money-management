@@ -63,6 +63,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ profile, updateProfile })
                         <option value="Normal">Normal</option>
                         <option value="Vegetarian">Vegetarian</option>
                         <option value="RendahGula">Rendah Gula</option>
+                        <option value="Ibu Hamil">Ibu Hamil</option>
+                        <option value="Badan Berisi">Badan Berisi (Bulking)</option>
+                        <option value="Pertumbuhan Anak">Pertumbuhan Anak</option>
                     </Select>
                 </div>
                 
