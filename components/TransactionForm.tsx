@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
-import { Transaction, TransactionType, ExpenseCategory, Account } from '../types';
-import { expenseCategories } from '../constants';
+import { Transaction, TransactionType, Account, Category } from '../types';
 
 interface TransactionFormProps {
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>) => void;
   accounts: Account[];
+  categories: Category[];
 }
 
 const FormField: React.FC<{label: string, htmlFor: string, children: React.ReactNode}> = ({label, htmlFor, children}) => (
@@ -37,11 +38,11 @@ const Select = ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectEle
 );
 
 
-const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accounts }) => {
+const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accounts, categories }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [category, setCategory] = useState<ExpenseCategory>(ExpenseCategory.FOOD);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [accountId, setAccountId] = useState<string>('');
 
@@ -50,6 +51,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
       setAccountId(accounts[0].id);
     }
   }, [accounts, accountId]);
+  
+  useEffect(() => {
+    if (categories.length > 0 && !categoryId) {
+      const foodCategory = categories.find(c => c.name === 'Makanan');
+      setCategoryId(foodCategory ? foodCategory.id : categories[0].id);
+    }
+  }, [categories, categoryId]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -58,14 +66,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
         alert("Harap isi semua kolom yang diperlukan, termasuk memilih Akun.");
         return;
     };
+    if (type === TransactionType.EXPENSE && !categoryId) {
+        alert("Harap pilih kategori untuk pengeluaran.");
+        return;
+    }
 
-    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis'> = {
+    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'> = {
       description,
       amount: parseFloat(amount),
       type,
       date,
       accountId,
-      ...(type === TransactionType.EXPENSE && { category }),
+      categoryId: type === TransactionType.EXPENSE ? categoryId : null,
     };
 
     addTransaction(transactionData);
@@ -122,8 +134,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
         {type === TransactionType.EXPENSE && (
           <div className="animate-fade-in">
             <FormField label="Kategori" htmlFor="category">
-                <Select id="category" value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
-                  {expenseCategories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
+                <Select id="category" value={categoryId || ''} onChange={(e) => setCategoryId(e.target.value)}>
+                  <option value="" disabled>Pilih Kategori</option>
+                  {categories.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                 </Select>
             </FormField>
           </div>
