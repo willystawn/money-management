@@ -55,7 +55,7 @@ const App: React.FC = () => {
         if (categoriesError) throw categoriesError;
 
         if (!fetchedCategories || fetchedCategories.length === 0) {
-            const categoriesToInsert = DEFAULT_CATEGORIES.map(cat => ({...cat, user_id: userId}));
+            const categoriesToInsert: Database['public']['Tables']['categories']['Insert'][] = DEFAULT_CATEGORIES.map(cat => ({...cat, user_id: userId}));
             const { data: seededCategories, error: seedError } = await supabase.from('categories').insert(categoriesToInsert).select();
             if(seedError) throw seedError;
             currentCategories = seededCategories || [];
@@ -68,18 +68,19 @@ const App: React.FC = () => {
         if (accountsError) throw accountsError;
         setAccounts(accountsData || []);
 
-        const { data: transactionsData, error: transactionsError } = await supabase.from('transactions').select('*, category:categories(id, name, color)').eq('user_id', userId).order('date', { ascending: false }).order('created_at', { ascending: false });
+        const { data: transactionsData, error: transactionsError } = await supabase.from('transactions').select('*, categories(id, name, color)').eq('user_id', userId).order('date', { ascending: false }).order('created_at', { ascending: false });
         if (transactionsError) throw transactionsError;
         const formattedTransactions: Transaction[] = transactionsData?.map(t => ({
           id: t.id,
           description: t.description,
           amount: t.amount,
           type: t.type as TransactionType,
-          category: t.category as { id: string; name: string; color: string } | null,
+          category: t.categories as { id: string; name: string; color: string } | null,
           date: t.date,
           accountId: t.account_id,
           categoryId: t.category_id,
           spendingAnalysis: t.spending_analysis as SpendingAnalysis | undefined,
+          created_at: t.created_at,
         })) || [];
         setTransactions(formattedTransactions);
 
@@ -117,7 +118,7 @@ const App: React.FC = () => {
     }
   }, [session, fetchData]);
 
-  const analyzeSpending = useCallback(async (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>): Promise<SpendingAnalysis> => {
+  const analyzeSpending = useCallback(async (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>): Promise<SpendingAnalysis> => {
     const foodCategory = categories.find(c => c.name === 'Makanan');
     if (transaction.type !== TransactionType.EXPENSE || !foodCategory || transaction.categoryId !== foodCategory.id) {
       return SpendingAnalysis.REASONABLE;
@@ -127,7 +128,7 @@ const App: React.FC = () => {
     return SpendingAnalysis.REASONABLE;
   }, [categories]);
 
-  const addTransaction = useCallback(async (transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>) => {
+  const addTransaction = useCallback(async (transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => {
     if (!session?.user) return;
     
     const spendingAnalysis = await analyzeSpending(transactionData);
@@ -141,7 +142,7 @@ const App: React.FC = () => {
       spending_analysis: spendingAnalysis,
     };
 
-    const { data, error } = await supabase.from('transactions').insert(dbTransaction).select('*, category:categories(id, name, color)').single();
+    const { data, error } = await supabase.from('transactions').insert(dbTransaction).select('*, categories(id, name, color)').single();
 
     if (error) {
         console.error('Error adding transaction:', error);
@@ -155,10 +156,58 @@ const App: React.FC = () => {
             date: data.date,
             accountId: data.account_id,
             categoryId: data.category_id,
-            category: data.category as { id: string; name: string; color: string } | null,
+            category: data.categories as { id: string; name: string; color: string } | null,
             spendingAnalysis: data.spending_analysis as SpendingAnalysis | undefined,
+            created_at: data.created_at,
         };
         setTransactions(prev => [formattedTransaction, ...prev]);
+    }
+  }, [session, analyzeSpending]);
+
+  const updateTransaction = useCallback(async (transactionId: string, transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => {
+    if (!session?.user) return;
+
+    const spendingAnalysis = await analyzeSpending(transactionData);
+    const { accountId, categoryId, ...rest } = transactionData;
+    
+    const dbTransaction: Database['public']['Tables']['transactions']['Update'] = {
+      ...rest,
+      account_id: accountId,
+      category_id: categoryId,
+      spending_analysis: spendingAnalysis,
+    };
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(dbTransaction)
+      .eq('id', transactionId)
+      .select('*, categories(id, name, color)')
+      .single();
+
+    if (error) {
+      console.error('Error updating transaction:', error);
+      alert(`Gagal memperbarui transaksi: ${error.message}`);
+    } else if (data) {
+      const formattedTransaction: Transaction = {
+        id: data.id,
+        description: data.description,
+        amount: data.amount,
+        type: data.type as TransactionType,
+        date: data.date,
+        accountId: data.account_id,
+        categoryId: data.category_id,
+        category: data.categories as { id: string; name: string; color: string } | null,
+        spendingAnalysis: data.spending_analysis as SpendingAnalysis | undefined,
+        created_at: data.created_at,
+      };
+      setTransactions(prev => {
+          const updated = prev.map(t => t.id === transactionId ? formattedTransaction : t);
+          return updated.sort((a, b) => {
+              const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+              if (dateDiff !== 0) return dateDiff;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
+      });
     }
   }, [session, analyzeSpending]);
 
@@ -220,7 +269,7 @@ const App: React.FC = () => {
         return;
     }
 
-    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'> = {
+    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'> = {
       description: 'Penyesuaian Saldo',
       amount: Math.abs(adjustmentAmount),
       type: adjustmentAmount > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
@@ -311,7 +360,7 @@ const App: React.FC = () => {
       case View.DASHBOARD:
         return <Dashboard transactions={transactions} addTransaction={addTransaction} budgets={budgets} healthProfile={healthProfile} accounts={accounts} categories={categories} />;
       case View.HISTORY:
-        return <TransactionHistory transactions={transactions} deleteTransaction={deleteTransaction} healthProfile={healthProfile} accounts={accounts} categories={categories} />;
+        return <TransactionHistory transactions={transactions} deleteTransaction={deleteTransaction} updateTransaction={updateTransaction} healthProfile={healthProfile} accounts={accounts} categories={categories} />;
       case View.ACCOUNTS:
         return <AccountsScreen accounts={accounts} transactions={transactions} addAccount={addAccount} deleteAccount={deleteAccount} adjustAccountBalance={adjustAccountBalance} />;
        case View.CATEGORIES:
@@ -323,7 +372,7 @@ const App: React.FC = () => {
       default:
         return <Dashboard transactions={transactions} addTransaction={addTransaction} budgets={budgets} healthProfile={healthProfile} accounts={accounts} categories={categories}/>;
     }
-  }, [currentView, transactions, accounts, budgets, healthProfile, categories, addTransaction, deleteTransaction, addAccount, deleteAccount, updateBudgets, updateProfile, session, deleteCategory, updateCategory, addCategory, adjustAccountBalance]);
+  }, [currentView, transactions, accounts, budgets, healthProfile, categories, addTransaction, deleteTransaction, addAccount, deleteAccount, updateBudgets, updateProfile, session, deleteCategory, updateCategory, addCategory, adjustAccountBalance, updateTransaction]);
 
   if (loading) {
     return (

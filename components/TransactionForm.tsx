@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, Account, Category } from '../types';
 
 interface TransactionFormProps {
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => void;
   accounts: Account[];
   categories: Category[];
 }
@@ -70,7 +71,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ addTransaction, accou
         return;
     }
 
-    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'> = {
+    const transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'> = {
       description,
       amount: parseFloat(amount),
       type,

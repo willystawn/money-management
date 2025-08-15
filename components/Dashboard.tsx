@@ -7,7 +7,7 @@ import TransactionForm from './TransactionForm';
 
 interface DashboardProps {
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => void;
   budgets: Budget;
   healthProfile: HealthProfile;
   accounts: Account[];

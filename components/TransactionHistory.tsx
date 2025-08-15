@@ -3,10 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { Transaction, TransactionType, SpendingAnalysis, HealthProfile, Account, Category } from '../types';
 import AISuggestion from './AISuggestion';
 import ConfirmationModal from './ConfirmationModal';
+import EditTransactionModal from './EditTransactionModal';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
   deleteTransaction: (id: string) => Promise<void>;
+  updateTransaction: (transactionId: string, transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => Promise<void>;
   healthProfile: HealthProfile;
   accounts: Account[];
   categories: Category[];
@@ -14,12 +16,13 @@ interface TransactionHistoryProps {
 
 const Icons = {
   Trash: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  Edit: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
   Lightbulb: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.375 3.375 0 0112 18.75v-2.625A5.002 5.002 0 0112 3z" /></svg>,
   Income: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>,
   Expense: ({className=''}) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" /></svg>,
 };
 
-const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, deleteTransaction, healthProfile, accounts, categories }) => {
+const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, deleteTransaction, updateTransaction, healthProfile, accounts, categories }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
     const [filterCategoryId, setFilterCategoryId] = useState<'all' | string>('all');
@@ -27,9 +30,14 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
     const [filterYear, setFilterYear] = useState<'all' | number>('all');
     const [filterMonth, setFilterMonth] = useState<'all' | number>('all');
     const [showSuggestionFor, setShowSuggestionFor] = useState<string | null>(null);
+
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
     
     const foodCategoryName = 'Makanan';
 
@@ -75,6 +83,19 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
             setIsDeleteModalOpen(false);
             setTransactionToDelete(null);
         }
+    };
+
+    const handleEditClick = (transaction: Transaction) => {
+        setTransactionToEdit(transaction);
+        setIsEditModalOpen(true);
+    };
+    
+    const handleConfirmUpdate = async (transactionId: string, transactionData: Omit<Transaction, 'id' | 'spendingAnalysis' | 'category' | 'created_at'>) => {
+        setIsSaving(true);
+        await updateTransaction(transactionId, transactionData);
+        setIsSaving(false);
+        setIsEditModalOpen(false);
+        setTransactionToEdit(null);
     };
     
     const Select = ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { children: React.ReactNode }) => (
@@ -187,6 +208,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
                                         <Icons.Lightbulb className="w-5 h-5" />
                                     </button>
                                 )}
+                                <button onClick={() => handleEditClick(t)} aria-label="Ubah Transaksi" className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-full transition-colors">
+                                    <Icons.Edit className="w-5 h-5" />
+                                </button>
                                 <button onClick={() => handleDeleteClick(t)} aria-label="Hapus Transaksi" className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors">
                                     <Icons.Trash className="w-5 h-5" />
                                 </button>
@@ -217,6 +241,15 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions, d
                     </p>
                 }
                 isConfirming={isDeleting}
+            />
+            <EditTransactionModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSave={handleConfirmUpdate}
+                transaction={transactionToEdit}
+                accounts={accounts}
+                categories={categories}
+                isSaving={isSaving}
             />
         </div>
     );

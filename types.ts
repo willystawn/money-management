@@ -32,6 +32,7 @@ export interface Transaction {
   categoryId: string | null;
   date: string;
   spendingAnalysis?: SpendingAnalysis;
+  created_at: string;
 }
 
 export enum View {
